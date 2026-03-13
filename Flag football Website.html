@@ -719,6 +719,7 @@
         <button id="changeWallpaperBtn" class="cta-button small" style="margin-right:8px;">Change Wallpaper</button>
         <input id="logoUploadInput" type="file" accept="image/*" style="display:none;">
         <input id="wallpaperUploadInput" type="file" accept="image/*" style="display:none;">
+        <span id="brandingMsg" style="margin-right:8px; font-size:0.9em;"></span>
         <button id="togglePageEditBtn" onclick="togglePageEdit()" class="cta-button small" style="margin-right:8px;">Disable Editing</button>
         <button onclick="logout()">Logout</button>
     </div>
@@ -1249,6 +1250,16 @@
             }
         }
 
+        let brandingMsgTimer = null;
+        function showBrandingStatus(message, success) {
+            const el = document.getElementById('brandingMsg');
+            if (!el) return;
+            if (brandingMsgTimer) { clearTimeout(brandingMsgTimer); brandingMsgTimer = null; }
+            el.style.color = success ? 'lightgreen' : '#ffb347';
+            el.textContent = message;
+            brandingMsgTimer = setTimeout(function() { el.textContent = ''; brandingMsgTimer = null; }, success ? 3000 : 5000);
+        }
+
         function bindAdminBrandingControls() {
             const changeLogoBtn = document.getElementById('changeLogoBtn');
             const changeWallpaperBtn = document.getElementById('changeWallpaperBtn');
@@ -1275,6 +1286,7 @@
                 logoUploadInput.addEventListener('change', function() {
                     const file = this.files && this.files[0];
                     if (!file || sessionStorage.getItem('adminLoggedIn') !== 'true') return;
+                    this.value = '';
                     const reader = new FileReader();
                     reader.onload = function(e) {
                         const dataUrl = e.target && e.target.result;
@@ -1285,11 +1297,15 @@
                             icon.href = dataUrl;
                             icon.type = file.type || 'image/png';
                         }
-                        localStorage.setItem(SITE_LOGO_KEY, dataUrl);
-                        flushPersistSiteContent();
+                        try {
+                            localStorage.setItem(SITE_LOGO_KEY, dataUrl);
+                            showBrandingStatus('Logo saved!', true);
+                        } catch (storageErr) {
+                            showBrandingStatus('Logo updated but not saved \u2014 try a smaller image.', false);
+                        }
+                        try { flushPersistSiteContent(); } catch (e2) { console.error('Failed to persist site content:', e2); }
                     };
                     reader.readAsDataURL(file);
-                    this.value = '';
                 });
             }
 
@@ -1298,20 +1314,25 @@
                 wallpaperUploadInput.addEventListener('change', function() {
                     const file = this.files && this.files[0];
                     if (!file || sessionStorage.getItem('adminLoggedIn') !== 'true') return;
+                    this.value = '';
                     const reader = new FileReader();
                     reader.onload = function(e) {
                         const dataUrl = e.target && e.target.result;
                         if (!dataUrl) return;
-                        document.body.style.backgroundImage = `url('${dataUrl}')`;
+                        document.body.style.backgroundImage = 'url(\'' + dataUrl + '\')';
                         document.body.style.backgroundSize = 'cover';
                         document.body.style.backgroundPosition = 'center';
                         document.body.style.backgroundAttachment = 'fixed';
                         document.body.style.backgroundRepeat = 'no-repeat';
-                        localStorage.setItem(SITE_WALLPAPER_KEY, dataUrl);
-                        flushPersistSiteContent();
+                        try {
+                            localStorage.setItem(SITE_WALLPAPER_KEY, dataUrl);
+                            showBrandingStatus('Wallpaper saved!', true);
+                        } catch (storageErr) {
+                            showBrandingStatus('Wallpaper updated but not saved \u2014 try a smaller image.', false);
+                        }
+                        try { flushPersistSiteContent(); } catch (e2) { console.error('Failed to persist site content:', e2); }
                     };
                     reader.readAsDataURL(file);
-                    this.value = '';
                 });
             }
         }
@@ -1358,6 +1379,15 @@
                 input.accept = 'image/*';
                 input.style.display = 'none';
                 adminHeader.appendChild(input);
+            }
+
+            if (!document.getElementById('brandingMsg')) {
+                const span = document.createElement('span');
+                span.id = 'brandingMsg';
+                span.style.marginRight = '8px';
+                span.style.fontSize = '0.9em';
+                if (toggleBtn) adminHeader.insertBefore(span, toggleBtn);
+                else adminHeader.appendChild(span);
             }
         }
 
@@ -2188,6 +2218,8 @@
             renderAdminPaymentRequests && renderAdminPaymentRequests();
             renderPayPalSettings && renderPayPalSettings();
             bindPayPalSettingsControls && bindPayPalSettingsControls();
+            // ensure saved branding (logo/wallpaper) is applied
+            applySavedBranding();
             // automatically enable schedule edit mode
             if (!scheduleEditing) toggleScheduleEdit();
             persistSiteContent();
