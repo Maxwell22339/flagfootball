@@ -795,7 +795,7 @@
                     <li><a href="#payments">Team/Free Agent Sign Up</a></li>
                     <li class="nav-game-history">
                         <a href="#game-history" id="gameHistoryNavToggle" style="display:flex;align-items:center;gap:4px;">Game History ▾</a>
-                        <ul class="game-history-dropdown hidden" id="gameHistoryDropdownMenu" style="display:none;">
+                        <ul class="game-history-dropdown" id="gameHistoryDropdownMenu" style="display:none;">
                             <li><a href="#game-history" data-filter="all" class="gh-active">All Games</a></li>
                         </ul>
                     </li>
@@ -1671,7 +1671,7 @@
         document.getElementById('closeMemberModal')?.addEventListener('click', function(){
             hideMemberModal();
         });
-        document.addEventListener('click', function(){ toggleLoginDropdown(false); toggleGameHistoryDropdown && toggleGameHistoryDropdown(false); });
+        document.addEventListener('click', function(){ toggleLoginDropdown(false); toggleGameHistoryDropdown(false); });
 
         document.getElementById('switchToMemberLogin').addEventListener('click', function(e){ e.preventDefault(); document.getElementById('memberRegisterForm').style.display='none'; document.getElementById('memberLoginForm').style.display='block'; });
         document.getElementById('switchToMemberRegister').addEventListener('click', function(e){ e.preventDefault(); document.getElementById('memberRegisterForm').style.display='block'; document.getElementById('memberLoginForm').style.display='none'; });
@@ -2373,7 +2373,7 @@
                     <td>${g.season || ''}</td>
                     <td>${g.week || ''}</td>
                     <td style="font-weight:bold; color:${homeWon ? '#4caf50' : '#333'};">${g.team1 || ''}</td>
-                    <td style="font-weight:bold; text-align:center;">${g.score1 != null ? g.score1 : '0'} &ndash; ${g.score2 != null ? g.score2 : '0'}</td>
+                    <td style="font-weight:bold; text-align:center;">${g.score1 ?? '0'} &ndash; ${g.score2 ?? '0'}</td>
                     <td style="font-weight:bold; color:${awayWon ? '#4caf50' : '#333'};">${g.team2 || ''}</td>
                     <td>${g.notes || ''}</td>
                     ${adminCell}
@@ -2416,8 +2416,7 @@
 
         function updateGameHistorySeasons() {
             const games = loadGameHistory();
-            const seasons = [];
-            games.forEach(function(g) { if (g.season && seasons.indexOf(g.season) === -1) seasons.push(g.season); });
+            const seasons = [...new Set(games.map(g => g.season).filter(Boolean))];
 
             // Update nav dropdown
             const navDrop = document.getElementById('gameHistoryDropdownMenu');
@@ -2535,9 +2534,6 @@
                 if (el) el.value = id.startsWith('ghScore') ? '0' : '';
             });
         });
-
-        renderGameHistory();
-        updateGameHistorySeasons();
 
         // Logo upload handling (admin-only)
     </script>
