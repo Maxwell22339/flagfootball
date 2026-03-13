@@ -717,8 +717,6 @@
         <span id="adminNameDisplay" style="font-weight:bold; margin-right:12px;"></span>
         <button id="changeLogoBtn" class="cta-button small" style="margin-right:8px;">Change Logo</button>
         <button id="changeWallpaperBtn" class="cta-button small" style="margin-right:8px;">Change Wallpaper</button>
-        <input id="logoUploadInput" type="file" accept="image/*" style="display:none;">
-        <input id="wallpaperUploadInput" type="file" accept="image/*" style="display:none;">
         <button id="togglePageEditBtn" onclick="togglePageEdit()" class="cta-button small" style="margin-right:8px;">Disable Editing</button>
         <button onclick="logout()">Logout</button>
     </div>
@@ -1156,6 +1154,10 @@
         <p>&copy; 2026 865 ELITE FLAG FOOTBALL. All rights reserved.</p>
     </footer>
     </div>
+    <!-- File inputs for logo/wallpaper upload live outside siteContent so they are never
+         overwritten by restoreSiteContent() and are unaffected by body[contenteditable]. -->
+    <input id="logoUploadInput" type="file" accept="image/*" style="display:none;" contenteditable="false">
+    <input id="wallpaperUploadInput" type="file" accept="image/*" style="display:none;" contenteditable="false">
 
     <script>
         // --- Admin credentials (unchanged) ---
@@ -1190,13 +1192,14 @@
             localStorage.setItem(PAYMENT_LINKS_KEY, JSON.stringify(PAYMENT_LINKS));
         }
 
+        let _paypalBound = false;
         function bindPayPalSettingsControls() {
             const saveBtn = document.getElementById('savePayPalLinksBtn');
             const teamInput = document.getElementById('paypalTeamLink');
             const freeInput = document.getElementById('paypalFreeAgentLink');
             const msg = document.getElementById('paypalSettingsMsg');
-            if (!saveBtn || !teamInput || !freeInput || saveBtn.dataset.bound) return;
-            saveBtn.dataset.bound = 'true';
+            if (!saveBtn || !teamInput || !freeInput || _paypalBound) return;
+            _paypalBound = true;
             saveBtn.addEventListener('click', function() {
                 if (sessionStorage.getItem('adminLoggedIn') !== 'true') {
                     if (msg) {
@@ -1249,71 +1252,74 @@
             }
         }
 
+        let _brandingBound = false;
+
+        // Temporarily remove body[contenteditable] so the file-picker dialog opens
+        // reliably in all browsers, then restore it immediately after the click.
+        function openFilePicker(input) {
+            var wasEditable = document.body.getAttribute('contenteditable') === 'true';
+            if (wasEditable) document.body.removeAttribute('contenteditable');
+            input.click();
+            if (wasEditable) document.body.setAttribute('contenteditable', 'true');
+        }
+
         function bindAdminBrandingControls() {
+            if (_brandingBound) return;
             const changeLogoBtn = document.getElementById('changeLogoBtn');
             const changeWallpaperBtn = document.getElementById('changeWallpaperBtn');
             const logoUploadInput = document.getElementById('logoUploadInput');
             const wallpaperUploadInput = document.getElementById('wallpaperUploadInput');
+            if (!changeLogoBtn || !changeWallpaperBtn || !logoUploadInput || !wallpaperUploadInput) return;
+            _brandingBound = true;
 
-            if (changeLogoBtn && logoUploadInput && !changeLogoBtn.dataset.bound) {
-                changeLogoBtn.dataset.bound = 'true';
-                changeLogoBtn.addEventListener('click', function() {
-                    if (sessionStorage.getItem('adminLoggedIn') !== 'true') return;
-                    logoUploadInput.click();
-                });
-            }
-            if (changeWallpaperBtn && wallpaperUploadInput && !changeWallpaperBtn.dataset.bound) {
-                changeWallpaperBtn.dataset.bound = 'true';
-                changeWallpaperBtn.addEventListener('click', function() {
-                    if (sessionStorage.getItem('adminLoggedIn') !== 'true') return;
-                    wallpaperUploadInput.click();
-                });
-            }
+            changeLogoBtn.addEventListener('click', function() {
+                if (sessionStorage.getItem('adminLoggedIn') !== 'true') return;
+                openFilePicker(logoUploadInput);
+            });
 
-            if (logoUploadInput && !logoUploadInput.dataset.bound) {
-                logoUploadInput.dataset.bound = 'true';
-                logoUploadInput.addEventListener('change', function() {
-                    const file = this.files && this.files[0];
-                    if (!file || sessionStorage.getItem('adminLoggedIn') !== 'true') return;
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const dataUrl = e.target && e.target.result;
-                        if (!dataUrl) return;
-                        document.querySelectorAll('.site-logo').forEach(img => { img.src = dataUrl; });
-                        const icon = document.querySelector('link[rel="icon"]');
-                        if (icon) {
-                            icon.href = dataUrl;
-                            icon.type = file.type || 'image/png';
-                        }
-                        localStorage.setItem(SITE_LOGO_KEY, dataUrl);
-                        flushPersistSiteContent();
-                    };
-                    reader.readAsDataURL(file);
-                    this.value = '';
-                });
-            }
+            changeWallpaperBtn.addEventListener('click', function() {
+                if (sessionStorage.getItem('adminLoggedIn') !== 'true') return;
+                openFilePicker(wallpaperUploadInput);
+            });
 
-            if (wallpaperUploadInput && !wallpaperUploadInput.dataset.bound) {
-                wallpaperUploadInput.dataset.bound = 'true';
-                wallpaperUploadInput.addEventListener('change', function() {
-                    const file = this.files && this.files[0];
-                    if (!file || sessionStorage.getItem('adminLoggedIn') !== 'true') return;
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const dataUrl = e.target && e.target.result;
-                        if (!dataUrl) return;
-                        document.body.style.backgroundImage = `url('${dataUrl}')`;
-                        document.body.style.backgroundSize = 'cover';
-                        document.body.style.backgroundPosition = 'center';
-                        document.body.style.backgroundAttachment = 'fixed';
-                        document.body.style.backgroundRepeat = 'no-repeat';
-                        localStorage.setItem(SITE_WALLPAPER_KEY, dataUrl);
-                        flushPersistSiteContent();
-                    };
-                    reader.readAsDataURL(file);
-                    this.value = '';
-                });
-            }
+            logoUploadInput.addEventListener('change', function() {
+                const file = this.files && this.files[0];
+                if (!file || sessionStorage.getItem('adminLoggedIn') !== 'true') return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const dataUrl = e.target && e.target.result;
+                    if (!dataUrl) return;
+                    document.querySelectorAll('.site-logo').forEach(img => { img.src = dataUrl; });
+                    const icon = document.querySelector('link[rel="icon"]');
+                    if (icon) {
+                        icon.href = dataUrl;
+                        icon.type = file.type || 'image/png';
+                    }
+                    localStorage.setItem(SITE_LOGO_KEY, dataUrl);
+                    flushPersistSiteContent();
+                };
+                reader.readAsDataURL(file);
+                this.value = '';
+            });
+
+            wallpaperUploadInput.addEventListener('change', function() {
+                const file = this.files && this.files[0];
+                if (!file || sessionStorage.getItem('adminLoggedIn') !== 'true') return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const dataUrl = e.target && e.target.result;
+                    if (!dataUrl) return;
+                    document.body.style.backgroundImage = `url('${dataUrl}')`;
+                    document.body.style.backgroundSize = 'cover';
+                    document.body.style.backgroundPosition = 'center';
+                    document.body.style.backgroundAttachment = 'fixed';
+                    document.body.style.backgroundRepeat = 'no-repeat';
+                    localStorage.setItem(SITE_WALLPAPER_KEY, dataUrl);
+                    flushPersistSiteContent();
+                };
+                reader.readAsDataURL(file);
+                this.value = '';
+            });
         }
 
         function ensureAdminBrandingUI() {
@@ -2188,6 +2194,8 @@
             renderAdminPaymentRequests && renderAdminPaymentRequests();
             renderPayPalSettings && renderPayPalSettings();
             bindPayPalSettingsControls && bindPayPalSettingsControls();
+            ensureAdminBrandingUI && ensureAdminBrandingUI();
+            bindAdminBrandingControls && bindAdminBrandingControls();
             // automatically enable schedule edit mode
             if (!scheduleEditing) toggleScheduleEdit();
             persistSiteContent();
